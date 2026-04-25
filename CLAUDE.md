@@ -11,6 +11,7 @@ Enterprise-grade non-functional testing tool suite comprising three platforms: P
 - `docs/` — Product solution documents per platform (precision_testing, chaos_testing, stress_testing)
 - `claudedocs/` — Technical research reports
 - `power-gatling/` — LoadForge distributed load testing PoC (the only code)
+- `myspec/` — Spec Coding 规范编码模板，用于基础设施与平台工程项目的结构化规范体系
 
 ## LoadForge Architecture
 
@@ -25,9 +26,9 @@ Frontend (React/Vite) → Master (FastAPI) → Redis (Pub/Sub + state store) →
 | Component | Directory | Stack | Role |
 |-----------|-----------|-------|------|
 | Master API | `power-gatling/master/app/` | Python/FastAPI | REST API, WebSocket, orchestrates workers |
-| Frontend | `power-gatling/frontend/` | React 18 + Vite + Ant Design + Recharts | Web console UI |
+| Frontend | `power-gatling/frontend/` | React 18 + TypeScript + Vite + Ant Design + Recharts | Web console UI |
 | Worker | `power-gatling/worker/` | Python agent + Gatling (Java) | Executes load tests, reports metrics |
-| Demo Target | `power-gatling/demo-target/` | Python/Flask | Built-in REST API for testing |
+| Demo Target | `power-gatling/demo-target/` | Python/Flask | Built-in REST API for testing (GET /api/products, POST /api/orders) |
 | Config | `power-gatling/config/` | Nginx configs, sample scenarios | Supporting files |
 
 ### Data Flow
@@ -100,6 +101,34 @@ npm run dev       # Vite dev server
 npm run build     # tsc + vite build
 ```
 
+**Frontend Stack**: React 18 + TypeScript + Vite + Ant Design + Recharts + Axios
+
+### Python Development (Local)
+
+各组件可独立运行进行本地开发：
+
+```bash
+# Master API
+cd power-gatling/master
+pip install -r requirements.txt
+export REDIS_URL=redis://localhost:6379
+uvicorn app.main:app --reload --port 8000
+
+# Worker
+cd power-gatling/worker
+pip install -r requirements.txt
+export REDIS_URL=redis://localhost:6379
+export GATLING_HOME=/path/to/gatling
+python worker_agent.py
+
+# Demo Target
+cd power-gatling/demo-target
+pip install -r requirements.txt
+python app.py
+```
+
+**Python Stack**: Python 3.11+, FastAPI, Uvicorn, Redis (async), Pydantic v2, Jinja2, WebSockets
+
 ### Environment Variables
 
 Key vars (see `power-gatling/.env` and `docker-compose.yml`):
@@ -107,6 +136,42 @@ Key vars (see `power-gatling/.env` and `docker-compose.yml`):
 - `WORKER_COUNT` — Number of worker replicas (default: 3)
 - `MASTER_PORT` — Master API port (default: 8000)
 - `GATLING_HOME` — Gatling install path in worker container (default: `/opt/gatling`)
+
+## Spec Coding 规范
+
+`myspec/` 目录包含 Spec Coding 规范编码模板，用于基础设施与平台工程项目的结构化规范体系。
+
+**四文档流水线**：
+1. GAP 差距分析 (`01_GAP_Analysis_Template.md`) — 评估现状、识别差距、论证投资价值
+2. 需求规格说明 (`02_Requirements_Template.md`) — 定义功能/非功能/基础设施需求
+3. FIP 功能实现计划 (`03_FIP_Template.md`) — 含架构图和实现方案的详细技术设计
+4. 任务清单 (`04_Task_List_Template.md`) — 分解为含依赖和工作量估算的分阶段任务
+
+**辅助规范文档**：
+- `05_Naming_Rules_Template.md` — 资源命名规范
+- `06_Failure_Patterns_Template.md` — 故障模式记录
+- `07_Auto_Task_Config_Template.md` — 自动化任务配置
+- `08_Infra_DevOps_Dependency_Rules_Template.md` — 基础设施依赖规则
+
+详细使用指南参见 `myspec/references/README.md`。
+
+## Development Notes
+
+### Master Service Key Files
+
+- `app/services/orchestrator.py` — 执行生命周期和多 Worker 指标聚合逻辑
+- `app/services/gatling_gen.py` — 使用 Jinja2 模板生成 Gatling 仿真代码
+- `app/core/worker_manager.py` — Worker 注册、任务分发、用户级并发分配
+
+### Worker Metrics Collection
+
+Worker 每秒解析 `simulation.log`，计算百分位数（p50/p95/p99），通过 Redis Pub/Sub 发布到 `loadforge:metrics` 频道。
+
+### Metric Aggregation Strategy
+
+- **响应时间**: 跨 Worker 加权平均（按请求数加权）
+- **RPS/错误数**: 跨 Worker 求和
+- **百分位数**: 从所有 Worker 的原始数据重新计算
 
 ## Language
 

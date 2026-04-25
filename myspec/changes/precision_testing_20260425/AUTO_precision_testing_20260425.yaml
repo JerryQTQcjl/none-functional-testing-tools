@@ -1,0 +1,534 @@
+# ==============================================================================
+# AUTO_TASK_CONFIG - PrecisionQA 精准测试平台
+# ==============================================================================
+
+execution:
+  mode: semi-auto
+  max_parallel_tasks: 3
+  stop_on_failure: true
+  auto_commit: true
+  commit_message_prefix: "[precisionqa]"
+
+branch:
+  name: "feature/precisionqa-platform"
+  create_if_missing: true
+  base_branch: "main"
+
+commit:
+  auto_stage: true
+  conventional_commits: true
+  message_template: "[type]([scope]): [description]"
+
+status_tracking:
+  file: "myspec/changes/precision_testing_20260425/TASKS_precision_testing_20260425.md"
+  format: "emoji"
+  update_frequency: "after_each_task"
+
+progress_documentation:
+  enabled: true
+  file: "myspec/changes/precision_testing_20260425/PROGRESS_precision_testing_20260425.md"
+  include_timestamps: true
+
+blocking_conditions:
+  - condition: "Uncommitted changes in working directory"
+    action: "stop"
+  - condition: "Kubernetes cluster unreachable"
+    action: "stop"
+  - condition: "Database connection failed"
+    action: "stop"
+  - condition: "Docker image not found"
+    action: "stop"
+  - condition: "Unit tests failed"
+    action: "ask"
+
+environments:
+  order: ["dev", "test", "staging", "prod"]
+  deploy_sequence: true
+  require_approval: ["staging", "prod"]
+
+  overrides:
+    dev:
+      execution:
+        mode: auto
+      validation:
+        post_task:
+          - "kubectl get pods -n precisionqa-dev"
+          - "curl -sf http://coverage-collector-dev/api/health"
+    staging:
+      execution:
+        mode: semi-auto
+      validation:
+        post_task:
+          - "kubectl get pods -n precisionqa-staging"
+          - "curl -sf https://precisionqa-staging.example.com/health"
+          - "pytest tests/integration/test_staging.py"
+    prod:
+      execution:
+        mode: semi-auto
+        max_parallel_tasks: 1
+      validation:
+        post_task:
+          - "kubectl get pods -n precisionqa-prod"
+          - "curl -sf https://precisionqa.example.com/health"
+          - "pytest tests/integration/test_prod.py"
+
+validation:
+  pre_task:
+    - "kubectl cluster-info"
+    - "kubectl get nodes"
+    - "docker ps"
+  post_task:
+    - "kubectl get pods -n precisionqa-dev"
+    - "kubectl describe deployment <service-name> -n precisionqa-dev"
+    - "kubectl logs -l app=<service-name> -n precisionqa-dev --tail=50"
+  pre_phase:
+    - "helm list -n precisionqa-dev"
+    - "kubectl get ns precisionqa-dev || kubectl create ns precisionqa-dev"
+  post_phase:
+    - "helm test <release-name> -n precisionqa-dev"
+    - "pytest tests/integration/ -k precisionqa --tb=short -q"
+
+# ==============================================================================
+# 环境特定配置
+# ==============================================================================
+
+projects:
+  coverage-collector:
+    service: "coverage-collector"
+    environments:
+      dev:
+        replicas: 1
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+      test:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+      staging:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+      prod:
+        replicas: 3
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "2Gi"
+          limits:
+            cpu: "4000m"
+            memory: "4Gi"
+
+  dependency-analyzer:
+    service: "dependency-analyzer"
+    environments:
+      dev:
+        replicas: 1
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+      test:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+      staging:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+      prod:
+        replicas: 3
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "4Gi"
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+
+  impact-analyzer:
+    service: "impact-analyzer"
+    environments:
+      dev:
+        replicas: 1
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+      test:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+      staging:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+      prod:
+        replicas: 3
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+
+  recommendation-engine:
+    service: "recommendation-engine"
+    environments:
+      dev:
+        replicas: 1
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+      test:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+      staging:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+      prod:
+        replicas: 3
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "4Gi"
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+
+  web-console:
+    service: "web-console"
+    environments:
+      dev:
+        replicas: 1
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+      test:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+      staging:
+        replicas: 2
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+      prod:
+        replicas: 3
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+
+# ==============================================================================
+# 数据库配置
+# ==============================================================================
+
+databases:
+  postgresql:
+    dev:
+      host: "postgresql-precisionqa-dev"
+      port: 5432
+      database: "precisionqa_business_dev"
+      username: "postgres"
+      password_secret: "postgresql-dev-secret"
+      replicas: 1
+    test:
+      host: "postgresql-precisionqa-test"
+      port: 5432
+      database: "precisionqa_business_test"
+      username: "postgres"
+      password_secret: "postgresql-test-secret"
+      replicas: 1
+    staging:
+      host: "postgresql-precisionqa-staging"
+      port: 5432
+      database: "precisionqa_business_staging"
+      username: "postgres"
+      password_secret: "postgresql-staging-secret"
+      replicas: 2
+    prod:
+      host: "postgresql-precisionqa-prod"
+      port: 5432
+      database: "precisionqa_business_prod"
+      username: "postgres"
+      password_secret: "postgresql-prod-secret"
+      replicas: 2
+
+  neo4j:
+    dev:
+      host: "neo4j-precisionqa-dev"
+      port: 7687
+      username: "neo4j"
+      password_secret: "neo4j-dev-secret"
+      replicas: 1
+    test:
+      host: "neo4j-precisionqa-test"
+      port: 7687
+      username: "neo4j"
+      password_secret: "neo4j-test-secret"
+      replicas: 1
+    staging:
+      host: "neo4j-precisionqa-staging"
+      port: 7687
+      username: "neo4j"
+      password_secret: "neo4j-staging-secret"
+      replicas: 3
+    prod:
+      host: "neo4j-precisionqa-prod"
+      port: 7687
+      username: "neo4j"
+      password_secret: "neo4j-prod-secret"
+      replicas: 3
+
+  clickhouse:
+    dev:
+      host: "clickhouse-precisionqa-dev"
+      port: 8123
+      database: "precisionqa_metrics_dev"
+      username: "default"
+      password_secret: "clickhouse-dev-secret"
+      replicas: 1
+    test:
+      host: "clickhouse-precisionqa-test"
+      port: 8123
+      database: "precisionqa_metrics_test"
+      username: "default"
+      password_secret: "clickhouse-test-secret"
+      replicas: 1
+    staging:
+      host: "clickhouse-precisionqa-staging"
+      port: 8123
+      database: "precisionqa_metrics_staging"
+      username: "default"
+      password_secret: "clickhouse-staging-secret"
+      replicas: 3
+    prod:
+      host: "clickhouse-precisionqa-prod"
+      port: 8123
+      database: "precisionqa_metrics_prod"
+      username: "default"
+      password_secret: "clickhouse-prod-secret"
+      replicas: 3
+
+  redis:
+    dev:
+      host: "redis-precisionqa-dev"
+      port: 6379
+      password_secret: "redis-dev-secret"
+      replicas: 1
+    test:
+      host: "redis-precisionqa-test"
+      port: 6379
+      password_secret: "redis-test-secret"
+      replicas: 1
+    staging:
+      host: "redis-precisionqa-staging"
+      port: 6379
+      password_secret: "redis-staging-secret"
+      replicas: 2
+    prod:
+      host: "redis-precisionqa-prod"
+      port: 6379
+      password_secret: "redis-prod-secret"
+      replicas: 2
+
+# ==============================================================================
+# Helm Charts 配置
+# ==============================================================================
+
+helm:
+  repo: "https://charts.example.com/precisionqa"
+  release_name: "precisionqa"
+  namespace_prefix: "precisionqa"
+
+  charts:
+    coverage-collector:
+      chart: "coverage-collector"
+      version: "1.0.0"
+    dependency-analyzer:
+      chart: "dependency-analyzer"
+      version: "1.0.0"
+    impact-analyzer:
+      chart: "impact-analyzer"
+      version: "1.0.0"
+    recommendation-engine:
+      chart: "recommendation-engine"
+      version: "1.0.0"
+    web-console:
+      chart: "web-console"
+      version: "1.0.0"
+
+# ==============================================================================
+# 监控配置
+# ==============================================================================
+
+monitoring:
+  enabled: true
+  service_monitor: true
+  prometheus_rules: true
+  grafana_dashboards: true
+
+  alerts:
+    - name: HighErrorRate
+      severity: warning
+      threshold: 0.05
+      duration: 5m
+    - name: HighLatency
+      severity: warning
+      threshold: 1.0
+      duration: 5m
+    - name: PodNotReady
+      severity: critical
+      duration: 2m
+    - name: DatabaseConnectionFailed
+      severity: critical
+      duration: 1m
+
+# ==============================================================================
+# 调试模式配置（开发环境使用）
+# ==============================================================================
+
+debug:
+  enabled: false
+  log_file: "logs/auto_task_debug.log"
+  verbosity: "detailed"
+  include_environment_variables: false
+  dry_run: false
+
+# ==============================================================================
+# 自定义阻塞条件
+# ==============================================================================
+
+custom_blocking_conditions:
+  - condition: "Unit test coverage below 80%"
+    action: "ask"
+    check_command: "pytest --cov=services --cov-report=term-missing | grep TOTAL | awk '{print $4}' | sed 's/%//'"
+    threshold: 80
+
+  - condition: "Integration test failed"
+    action: "stop"
+    check_command: "pytest tests/integration/ -q"
+
+  - condition: "Docker image build failed"
+    action: "stop"
+    check_command: "docker build -t test-image ."
+
+  - condition: "Helm lint failed"
+    action: "stop"
+    check_command: "helm lint precisionqa/"
+
+# ==============================================================================
+# 回滚配置
+# ==============================================================================
+
+rollback:
+  enabled: true
+  auto_rollback_on_failure: true
+  max_rollback_attempts: 3
+  rollback_timeout: 300
+
+  backup:
+    enabled: true
+    backup_before_deploy: true
+    backup_location: "s3://precisionqa-backups"
+
+# ==============================================================================
+# 通知配置
+# ==============================================================================
+
+notifications:
+  enabled: true
+  channels:
+    slack:
+      webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      channel: "#precisionqa-deployments"
+      username: "PrecisionQA Bot"
+      icon_emoji: ":rocket:"
+
+    email:
+      enabled: false
+      to: "team@example.com"
+      from: "precisionqa@example.com"
+      smtp_server: "smtp.example.com"
+      smtp_port: 587
+
+# ==============================================================================
+# 版本控制
+# ==============================================================================
+
+version: "1.0.0"
+last_updated: "2026-04-25"

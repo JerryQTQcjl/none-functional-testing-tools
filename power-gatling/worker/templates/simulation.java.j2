@@ -1,0 +1,51 @@
+package loadforge;
+
+import io.gatling.javaapi.core.*;
+import io.gatling.javaapi.http.*;
+import java.time.Duration;
+
+import static io.gatling.javaapi.core.CoreDsl.*;
+import static io.gatling.javaapi.http.HttpDsl.*;
+
+public class {{ class_name }} extends Simulation {
+
+    private HttpProtocolBuilder httpProtocol = http
+        .baseUrl("{{ base_url }}")
+        .header("x-load-test", "true")
+{% if headers %}
+    {% for key, value in headers.items() %}
+        .header("{{ key }}", "{{ value }}")
+    {% endfor %}
+{% endif %}
+        .acceptHeader("application/json")
+        .acceptEncodingHeader("gzip, deflate")
+        .userAgentHeader("LoadForge-Worker/1.0");
+
+    private ScenarioBuilder scn = scenario("{{ class_name }}")
+        .exec(
+            http("{{ request_name }}")
+                .{{ method_lower }}("{{ path }}")
+{% if body %}
+                .body(StringBody("{{ body_escaped }}"))
+                .asJson()
+{% endif %}
+                .check(status().is({{ expected_status }}))
+        );
+
+    {
+        int users = {{ users }};
+        int rampUpSeconds = {{ ramp_up_seconds }};
+        int sustainedSeconds = {{ sustained_seconds }};
+
+        setUp(
+            scn.injectOpen(
+                rampUsers(users).during(Duration.ofSeconds(rampUpSeconds)),
+                constantUsersPerSec((double) users / Math.max(1, sustainedSeconds))
+                    .during(Duration.ofSeconds(sustainedSeconds))
+            )
+        ).protocols(httpProtocol)
+         .assertions(
+             global().failedRequests().percent().lt(50.0)
+         );
+    }
+}

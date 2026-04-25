@@ -1,0 +1,13 @@
+{
+  "name": "电商浏览压测",
+  "description": "模拟用户浏览商品列表场景，测试 GET /api/products 接口的并发能力",
+  "target_url": "http://demo-target:8080/api/products",
+  "method": "GET",
+  "headers": {},
+  "body": null,
+  "concurrent_users": 200,
+  "ramp_up_duration": 15,
+  "sustained_duration": 60,
+  "workers": 2,
+  "tags": ["电商", "浏览", "GET"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "电商下单压测",
+  "description": "模拟用户下单场景，测试 POST /api/orders 接口在高并发下的表现",
+  "target_url": "http://demo-target:8080/api/orders",
+  "method": "POST",
+  "headers": { "Content-Type": "application/json" },
+  "body": "{\"product_id\": 1, \"quantity\": 2}",
+  "concurrent_users": 100,
+  "ramp_up_duration": 10,
+  "sustained_duration": 30,
+  "workers": 2,
+  "tags": ["电商", "下单", "POST"]
+}

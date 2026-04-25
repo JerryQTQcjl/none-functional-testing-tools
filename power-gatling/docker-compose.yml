@@ -1,0 +1,80 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - loadforge-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  demo-target:
+    build:
+      context: ./demo-target
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  master:
+    build:
+      context: ./master
+      dockerfile: Dockerfile
+    ports:
+      - "${MASTER_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - WORKER_COUNT=${WORKER_COUNT:-3}
+    volumes:
+      - loadforge-scripts:/app/scripts
+      - loadforge-results:/app/results
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+      master:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - GATLING_HOME=/opt/gatling
+      - RESULTS_DIR=/app/results
+    volumes:
+      - loadforge-scripts:/app/scripts
+      - loadforge-results:/app/results
+    deploy:
+      replicas: ${WORKER_COUNT:-3}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - master
+    restart: unless-stopped
+
+volumes:
+  loadforge-redis:
+  loadforge-scripts:
+  loadforge-results:
